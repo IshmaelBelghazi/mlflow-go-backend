@@ -184,6 +184,3 @@ exclude = [
 
 [tool.uv]
 dev-dependencies = ["pytest>=8.0.0", "ziglang>0.12", "pip>=24.2"]
-
-[tool.uv.sources]
-mlflow = { path = ".mlflow.repo", editable = true }
