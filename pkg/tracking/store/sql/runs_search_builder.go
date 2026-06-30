@@ -104,6 +104,21 @@ func applyFilter(ctx context.Context, database, transaction *gorm.DB, filter str
 			key = utils.TagRunName
 		}
 
+		if comparison == "IS NULL" || comparison == "IS NOT NULL" {
+			subquery := database.Select("1").
+				Where("key = ?", key).
+				Where("run_uuid = runs.run_uuid").
+				Model(kind)
+
+			if comparison == "IS NULL" {
+				transaction.Where("NOT EXISTS (?)", subquery)
+			} else {
+				transaction.Where("EXISTS (?)", subquery)
+			}
+
+			continue
+		}
+
 		isSqliteAndILike := database.Dialector.Name() == "sqlite" && comparison == "ILIKE"
 		table := fmt.Sprintf("filter_%d", index)
 
@@ -219,10 +234,10 @@ const (
 )
 
 func orderByKeyAlias(input string) string {
-	switch input {
-	case "created", "Created":
+	switch strings.ToLower(input) {
+	case "created":
 		return startTime
-	case "run_name", "run name", "Run name", "Run Name":
+	case "run_name", "run name":
 		return name
 	case "run_id":
 		return "run_uuid"
@@ -268,7 +283,7 @@ func handleOutsideQuote(
 // Process an order by input string to split the string into the separate parts.
 // We can't simply split by space, because the column name could be wrapped in quotes, e.g. "Run name" ASC.
 func splitOrderByClauseWithQuotes(input string) []string {
-	input = strings.ToLower(strings.Trim(input, " "))
+	input = strings.Trim(input, " ")
 
 	var result []string
 
@@ -320,7 +335,7 @@ func processOrderByClause(input string) (orderByExpr, error) {
 
 	var expr orderByExpr
 
-	identifierKey := strings.Split(parts[0], ".")
+	identifierKey := strings.SplitN(parts[0], ".", identifierAndKeyLength)
 
 	if len(identifierKey) == identifierAndKeyLength {
 		expr.identifier = utils.PtrTo(translateIdentifierAlias(identifierKey[0]))

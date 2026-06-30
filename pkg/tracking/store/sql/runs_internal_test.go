@@ -284,6 +284,36 @@ var tests = []testData{
 		expectedVars: []any{"accuracy", 0.72, "batch_size", "%a"},
 	},
 	{
+		name:  "TagIsNullQuery",
+		query: "tags.`mlflow.runName` IS NULL",
+		expectedSQL: map[string]string{
+			"postgres": `
+	SELECT "run_uuid" FROM "runs"
+	WHERE NOT EXISTS (
+		SELECT 1 FROM "tags"
+		WHERE key = $1
+		AND run_uuid = runs.run_uuid
+	)
+	ORDER BY runs.start_time DESC,runs.run_uuid`,
+		},
+		expectedVars: []any{"mlflow.runName"},
+	},
+	{
+		name:  "ParamIsNotNullQuery",
+		query: "params.batch_size IS NOT NULL",
+		expectedSQL: map[string]string{
+			"postgres": `
+	SELECT "run_uuid" FROM "runs"
+	WHERE EXISTS (
+		SELECT 1 FROM "params"
+		WHERE key = $1
+		AND run_uuid = runs.run_uuid
+	)
+	ORDER BY runs.start_time DESC,runs.run_uuid`,
+		},
+		expectedVars: []any{"batch_size"},
+	},
+	{
 		name:    "OrderByStartTimeASC",
 		query:   "",
 		orderBy: []string{"start_time ASC"},
@@ -515,4 +545,17 @@ func TestOrderByClauseParsing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOrderByClauseParsingPreservesDottedTagKey(t *testing.T) {
+	t.Parallel()
+
+	result, err := processOrderByClause("tags.`mlflow.runName` DESC")
+
+	require.NoError(t, err)
+	assert.Equal(t, orderByExpr{
+		identifier: utils.PtrTo("tag"),
+		key:        "mlflow.runName",
+		order:      utils.PtrTo("DESC"),
+	}, result)
 }

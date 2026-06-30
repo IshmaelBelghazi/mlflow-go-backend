@@ -55,6 +55,16 @@ func (n StringListExpr) String() string {
 	return strings.Join(items, ", ")
 }
 
+type NullExpr struct{}
+
+func (n NullExpr) value() interface{} {
+	return nil
+}
+
+func (n NullExpr) String() string {
+	return "NULL"
+}
+
 //-----------------------
 // Identifier Expressions
 // ----------------------
@@ -90,6 +100,8 @@ const (
 	ILike
 	In //nolint:varnamelen
 	NotIn
+	IsNull
+	IsNotNull
 )
 
 //nolint:cyclop
@@ -115,6 +127,10 @@ func (op OperatorKind) String() string {
 		return "IN"
 	case NotIn:
 		return "NOT IN"
+	case IsNull:
+		return "IS NULL"
+	case IsNotNull:
+		return "IS NOT NULL"
 	default:
 		return "UNKNOWN"
 	}

@@ -315,6 +315,21 @@ func ValidateExpression(expression *CompareExpr) (*ValidCompareExpr, error) {
 		return nil, fmt.Errorf("Error on parsing filter expression: %w", err)
 	}
 
+	if expression.Operator == IsNull || expression.Operator == IsNotNull {
+		if validIdentifier != Parameter && validIdentifier != Tag {
+			return nil, NewValidationError(
+				"IS NULL / IS NOT NULL is only supported for tags and params",
+			)
+		}
+
+		return &ValidCompareExpr{
+			Identifier: validIdentifier,
+			Key:        validKey,
+			Operator:   expression.Operator,
+			Value:      nil,
+		}, nil
+	}
+
 	value, err := validateValue(validIdentifier, validKey, expression.Right)
 	if err != nil {
 		return nil, fmt.Errorf("Error on parsing filter expression: %w", err)

@@ -30,7 +30,9 @@ const (
 
 	// Reserved Keywords.
 	In //nolint:varnamelen
+	Is
 	Not
+	Null
 	Like
 	ILike
 	And
@@ -39,7 +41,9 @@ const (
 //nolint:gochecknoglobals
 var reservedLu = map[string]TokenKind{
 	"AND":   And,
+	"IS":    Is,
 	"NOT":   Not,
+	"NULL":  Null,
 	"IN":    In,
 	"LIKE":  Like,
 	"ILIKE": ILike,
@@ -93,8 +97,12 @@ func TokenKindString(kind TokenKind) string {
 		return "comma"
 	case In:
 		return "in"
+	case Is:
+		return "is"
 	case Not:
 		return "not"
+	case Null:
+		return "null"
 	case Like:
 		return "like"
 	case ILike:

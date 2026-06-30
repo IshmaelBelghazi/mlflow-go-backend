@@ -14,9 +14,11 @@ func TestValidQueries(t *testing.T) {
 		"metrics.foobar = 40",
 		"metrics.foobar = 40 AND run_name = \"bouncy-boar-498\"",
 		"tags.\"mlflow.source.name\" = \"scratch.py\"",
+		"tags.`mlflow.runName` IS NULL",
 		"metrics.accuracy > 0.9",
 		"params.\"random_state\" = \"8888\"",
 		"params.`random_state` = \"8888\"",
+		"params.`random_state` IS NOT NULL",
 		"params.solver ILIKE \"L%\"",
 		"params.solver LIKE \"l%\"",
 		"datasets.digest IN ('77a19fc0')",
@@ -75,6 +77,10 @@ func TestInvalidQueries(t *testing.T) {
 		{
 			input:         "attributes.run_name IN ('foo','bar')",
 			expectedError: "only the 'run_id' attribute supports comparison with a list",
+		},
+		{
+			input:         "attributes.status IS NULL",
+			expectedError: "IS NULL / IS NOT NULL is only supported for tags and params",
 		},
 		{
 			input:         "datasets.name = 40",

@@ -26,11 +26,14 @@ const (
 	LessOrEqualExpression    = "<="
 	GreaterExpression        = ">"
 	GreaterOrEqualExpression = ">="
+	IsNullExpression         = "IS NULL"
+	IsNotNullExpression      = "IS NOT NULL"
 )
 
 //nolint:lll
 var (
 	filterAnd       = regexp.MustCompile(`(?i)\s+AND\s+`)
+	filterNullCond  = regexp.MustCompile(`^(?:(\w+)\.)?("[^"]+"|` + "`[^`]+`" + `|[\w\.]+)\s+(?i:(IS(?: NOT)? NULL))$`)
 	filterCond      = regexp.MustCompile(`^(?:(\w+)\.)?("[^"]+"|` + "`[^`]+`" + `|[\w\.]+)\s+(<|<=|>|>=|=|!=|(?i:I?LIKE)|(?i:(?:NOT )?IN))\s+(\((?:'[^']+'(?:,\s*)?)+\)|"[^"]+"|'[^']+'|[\w\.]+)$`)
 	experimentOrder = regexp.MustCompile(`^(?:attr(?:ibutes?)?\.)?(\w+)(?i:\s+(ASC|DESC))?$`)
 )
@@ -139,10 +142,42 @@ func applyExperimentsOrderBy(query *gorm.DB, orderBy []string) (*gorm.DB, *contr
 	return query, nil
 }
 
+func applyExperimentTagNullFilter(database, query *gorm.DB, key, comparison string) *gorm.DB {
+	subquery := database.Select("1").
+		Where("key = ?", key).
+		Where("experiment_tags.experiment_id = experiments.experiment_id").
+		Model(&models.ExperimentTag{})
+
+	if comparison == IsNullExpression {
+		return query.Where("NOT EXISTS (?)", subquery)
+	}
+
+	return query.Where("EXISTS (?)", subquery)
+}
+
 //nolint:funlen,gocognit,nestif,cyclop,goconst,mnd,forcetypeassert
 func applyExperimentsFilter(database, query *gorm.DB, filter string) (*gorm.DB, *contract.Error) {
 	if filter != "" {
 		for index, f := range filterAnd.Split(filter, -1) {
+			nullParts := filterNullCond.FindStringSubmatch(f)
+			if len(nullParts) == 4 {
+				entity := nullParts[1]
+				key := strings.Trim(nullParts[2], "\"`")
+				comparison := strings.ToUpper(nullParts[3])
+
+				switch entity {
+				case "tag", "tags":
+					query = applyExperimentTagNullFilter(database, query, key, comparison)
+				default:
+					return nil, contract.NewError(
+						protos.ErrorCode_INVALID_PARAMETER_VALUE,
+						"IS NULL / IS NOT NULL is only supported for tags",
+					)
+				}
+
+				continue
+			}
+
 			parts := filterCond.FindStringSubmatch(f)
 			if len(parts) != 5 {
 				return nil, contract.NewError(

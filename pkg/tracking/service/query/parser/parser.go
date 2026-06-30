@@ -179,6 +179,27 @@ func (p *parser) parseInSetExpr(ident Identifier) (*CompareExpr, error) {
 	return &CompareExpr{Left: ident, Operator: In, Right: StringListExpr{Values: set}}, nil
 }
 
+func (p *parser) parseNullExpr(ident Identifier) (*CompareExpr, error) {
+	p.advance() // Consume the IS
+
+	operator := IsNull
+	if p.currentTokenKind() == lexer.Not {
+		p.advance() // Consume the NOT
+		operator = IsNotNull
+	}
+
+	if p.currentTokenKind() != lexer.Null {
+		return nil, NewParserError(
+			"expected NULL after IS, got %s",
+			p.printCurrentToken(),
+		)
+	}
+
+	p.advance() // Consume the NULL
+
+	return &CompareExpr{Left: ident, Operator: operator, Right: NullExpr{}}, nil
+}
+
 func (p *parser) parseExpression() (*CompareExpr, error) {
 	ident, err := p.parseIdentifier()
 	if err != nil {
@@ -191,6 +212,8 @@ func (p *parser) parseExpression() (*CompareExpr, error) {
 		p.advance() // Consume the IN
 
 		return p.parseInSetExpr(ident)
+	case lexer.Is:
+		return p.parseNullExpr(ident)
 	case lexer.Not:
 		p.advance() // Consume the NOT
 
