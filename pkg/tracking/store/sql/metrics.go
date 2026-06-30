@@ -169,12 +169,20 @@ func (s TrackingSQLStore) logModelMetricsWithTransaction(
 	seenLoggedModelMetrics := make(map[models.LoggedModelMetric]struct{})
 
 	for _, metric := range metrics {
+		if metric.ModelID == "" {
+			continue
+		}
+
 		currentMetric := models.NewLoggedMetricFromEntity(runID, metric)
 		if _, ok := seenLoggedModelMetrics[*currentMetric]; !ok {
 			seenLoggedModelMetrics[*currentMetric] = struct{}{}
 
 			loggedModelMetrics = append(loggedModelMetrics, *currentMetric)
 		}
+	}
+
+	if len(loggedModelMetrics) == 0 {
+		return nil
 	}
 
 	if err := transaction.Clauses(
