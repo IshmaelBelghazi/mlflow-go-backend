@@ -1,6 +1,7 @@
 package query_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -112,6 +113,59 @@ func TestInvalidQueries(t *testing.T) {
 					currentSample.expectedError,
 					err.Error(),
 				)
+			}
+		})
+	}
+}
+
+func TestDottedIdentifiersMatchQuotedKeys(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		namespace string
+		key       string
+		tail      string
+	}{
+		{"tags", "life.worker", " = 'Trainer'"},
+		{"tag", "life.worker.role", " != 'Evaluator'"},
+		{"tags", "mlflow.runName", " LIKE 'train%'"},
+		{"params", "model.optim.lr", " = '0.001'"},
+		{"metrics", "valid.loss", " > -0.5 AND metrics.train.loss < 0.25"},
+		{"tags", "life.worker", " IS NULL"},
+		{"params", "model.optim.lr", " IS NOT NULL"},
+		{"tags", "life.AND", " = 'Trainer' AND attributes.status = 'FINISHED'"},
+		{"tags", "life.NULL", " = 'Trainer'"},
+	}
+	for _, sample := range cases {
+		t.Run(sample.namespace+"."+sample.key+sample.tail, func(t *testing.T) {
+			plain, err := query.ParseFilter(sample.namespace + "." + sample.key + sample.tail)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, quote := range []string{"`", "\"", "'"} {
+				quoted, err := query.ParseFilter(sample.namespace + "." + quote + sample.key + quote + sample.tail)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(plain, quoted) || plain[0].Key != sample.key {
+					t.Fatalf("plain and quoted keys differ: %#v versus %#v", plain, quoted)
+				}
+			}
+		})
+	}
+}
+
+func TestMalformedDottedIdentifiersReturnErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{
+		"tags.life.worker", "tags.life.worker =", "tags.life.worker = 'Trainer' AND",
+		"tags.life worker = 'Trainer'", "tags.life.123 = 'Trainer'",
+		"attributes.life.worker = 'Trainer'", "datasets.life.worker = 'Trainer'",
+	} {
+		t.Run(input, func(t *testing.T) {
+			if _, err := query.ParseFilter(input); err == nil {
+				t.Fatal("expected an error")
 			}
 		})
 	}

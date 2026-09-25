@@ -56,7 +56,7 @@ func (e *Error) Error() string {
 
 func (p *parser) parseIdentifier() (Identifier, error) {
 	emptyIdentifier := Identifier{Identifier: "", Key: ""}
-	if p.hasTokens() && p.currentTokenKind() != lexer.Identifier {
+	if !p.hasTokens() || p.currentTokenKind() != lexer.Identifier {
 		return emptyIdentifier, NewParserError(
 			"expected identifier, got %s",
 			p.printCurrentToken(),
@@ -69,29 +69,47 @@ func (p *parser) parseIdentifier() (Identifier, error) {
 		p.advance() // Consume the DOT
 		//nolint:exhaustive
 		switch p.currentTokenKind() {
-		case lexer.Identifier:
-			column := p.advance().Value
-
-			return Identifier{Identifier: identToken.Value, Key: column}, nil
 		case lexer.String:
 			column := p.advance().Value
 			column = column[1 : len(column)-1] // Remove quotes
 
 			return Identifier{Identifier: identToken.Value, Key: column}, nil
 		default:
-			return emptyIdentifier, NewParserError(
-				"expected IDENTIFIER or STRING, got %s",
-				p.printCurrentToken(),
-			)
+			column, err := p.parseUnquotedKey()
+			if err != nil {
+				return emptyIdentifier, err
+			}
+
+			return Identifier{Identifier: identToken.Value, Key: column}, nil
 		}
 	} else {
 		return Identifier{Identifier: "", Key: identToken.Value}, nil
 	}
 }
 
+// Only the first dot separates the namespace; further dots belong to the key.
+func (p *parser) parseUnquotedKey() (string, error) {
+	key := ""
+	for {
+		switch p.currentTokenKind() {
+		case lexer.Identifier, lexer.And, lexer.Not, lexer.In, lexer.Like, lexer.ILike, lexer.Is, lexer.Null:
+			// Keywords after a namespace or dot are literal key components.
+			key += p.advance().Value
+		default:
+			return "", NewParserError("expected key component, got %s", p.printCurrentToken())
+		}
+
+		if p.currentTokenKind() != lexer.Dot {
+			return key, nil
+		}
+		key += p.advance().Value
+	}
+}
+
 func (p *parser) parseOperator() (OperatorKind, error) {
+	token := p.advance()
 	//nolint:exhaustive
-	switch p.advance().Kind {
+	switch token.Kind {
 	case lexer.Equals:
 		return Equals, nil
 	case lexer.NotEquals:
@@ -109,7 +127,7 @@ func (p *parser) parseOperator() (OperatorKind, error) {
 	case lexer.ILike:
 		return ILike, nil
 	default:
-		return -1, NewParserError("expected operator, got %s", p.printCurrentToken())
+		return -1, NewParserError("expected operator, got %s", token.Debug())
 	}
 }
 
