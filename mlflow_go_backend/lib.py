@@ -149,6 +149,10 @@ def _parse_header(path: pathlib.Path):
         re.MULTILINE,
     )
 
+    # Go >= 1.24 also declares cgo runtime helpers such as _GoStringLen(_GoString_ s); they are not
+    # exported API and cffi cannot parse their types, so keep only the library's own functions.
+    functions = [func for func in functions if not re.search(r"\b_Go\w*\s*\(", func)]
+
     # Replace GoInt64 with int64_t in each function
     transformed_functions = [
         func.replace("GoInt64", "int64_t").replace("__declspec(dllexport) ", "")
